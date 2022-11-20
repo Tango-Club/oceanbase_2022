@@ -1,0 +1,18 @@
+create table lineitem_bulk (
+ l_orderkey BIGINT NOT NULL,
+ l_partkey BIGINT NOT NULL,
+ l_suppkey INTEGER NOT NULL,
+ l_linenumber INTEGER NOT NULL,
+ l_quantity DECIMAL(15,2) NOT NULL,
+ l_extendedprice DECIMAL(15,2) NOT NULL,
+ l_discount DECIMAL(15,2) NOT NULL,
+ l_tax DECIMAL(15,2) NOT NULL,
+ l_returnflag char(1) DEFAULT NULL,
+ l_linestatus char(1) DEFAULT NULL,
+ l_shipdate date NOT NULL,
+ l_commitdate date DEFAULT NULL,
+ l_receiptdate date DEFAULT NULL,
+ l_shipinstruct char(25) DEFAULT NULL,
+ l_shipmode char(10) DEFAULT NULL,
+ l_comment varchar(44) DEFAULT NULL,
+ primary key(l_orderkey, l_linenumber))

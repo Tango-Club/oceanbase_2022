@@ -273,6 +273,12 @@ tools/deploy/obd_profile.sh
 tools/deploy/single-with-proxy.yaml
 tools/deploy/single.yaml
 
+tools/tpch-tools/bin/TPC-H_Tools_v3.0.0
+tools/tpch-tools/bin/tpc-h_v3.0.0.docx
+tools/tpch-tools/bin/tpc-h_v3.0.0.pdf
+tools/tpch-tools/TPC-H_Tools_v3.0.0.zip
+tools/tpch-tools/bin/tpch-data
+
 ############# unittest #############
 unittest/**/test_*		
 unittest/**/*_test		
