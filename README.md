@@ -30,3 +30,8 @@ MySQL [tpch]> select count(*) from lineitem_bulk;
 +----------+
 1 row in set (0.005 sec)
 ```
+
+### perf
+
+perf record -p 9041 -e cycles -g --call-graph dwarf
+perf report -g graph
