@@ -188,21 +188,19 @@ protected:
 
 template<>
 inline int ObCSVGeneralParser::mbcharlen<common::CHARSET_UTF8MB4>(const char *ptr, const char *end) {
-  int mb_len = 1;
+  static constexpr std::array<uint8, 256> UTF8_BYTE_LENGTH = {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6};
+
   UNUSED(end);
-  unsigned char c = *ptr;
-  if (c < 0x80) {
-    mb_len = 1;
-  } else if (c < 0xc2) {
-    mb_len = 1; /* Illegal mb head */
-  } else if (c < 0xe0) {
-    mb_len = 2;
-  } else if (c < 0xf0) {
-    mb_len = 3;
-  } else if (c < 0xf8) {
-    mb_len = 4;
-  }
-  return mb_len; /* Illegal mb head */;
+  return UTF8_BYTE_LENGTH[*ptr];
 }
 
 template<>

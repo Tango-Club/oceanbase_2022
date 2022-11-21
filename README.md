@@ -16,7 +16,7 @@ set global secure_file_priv = "";
  -- 设置导入超时时间。时间单位是"微秒"
 set global ob_query_timeout=36000000000;
  -- 导入数据。需要调整文件路径
-load data infile "xxx/tools/tpch-tools/bin/tpch-data" into table lineitem_bulk fields terminated by "|";
+load data infile "/root/oceanbase_2022/tools/tpch-tools/bin/tpch-data/lineitem.tbl" into table lineitem_bulk fields terminated by "|";
 ```
 
 完成后验证数据量是否正确, 1G为6001215行。
@@ -33,5 +33,5 @@ MySQL [tpch]> select count(*) from lineitem_bulk;
 
 ### perf
 
-perf record -p 9041 -e cycles -g --call-graph dwarf
-perf report -g graph
+perf record -p 19872 -e cycles -g -F99
+perf report -g --no-children
