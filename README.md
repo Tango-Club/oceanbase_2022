@@ -33,5 +33,5 @@ MySQL [tpch]> select count(*) from lineitem_bulk;
 
 ### perf
 
-perf record -p 19872 -e cycles -g -F99
+perf record -p 3556 -e cycles -g -F99
 perf report -g --no-children

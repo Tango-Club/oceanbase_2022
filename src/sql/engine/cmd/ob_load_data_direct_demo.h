@@ -43,10 +43,12 @@ class ObLoadSequentialFileReader
 public:
   ObLoadSequentialFileReader();
   ~ObLoadSequentialFileReader();
-  int open(const ObString &filepath);
+  int open(const ObString &filepath, const ObString &term);
   int read_next_buffer(ObLoadDataBuffer &buffer);
+
 private:
   common::ObFileReader file_reader_;
+  ObString term_;
   int64_t offset_;
   bool is_read_end_;
 };
@@ -158,6 +160,7 @@ private:
   storage::ObExternalSort<ObLoadDatumRow, ObLoadDatumRowCompare> external_sort_;
   bool is_closed_;
   bool is_inited_;
+  std::mutex mtx_;
 };
 
 class ObLoadSSTableWriter
@@ -193,6 +196,7 @@ class ObLoadDataDirectDemo : public ObLoadDataBase
 {
   static const int64_t MEM_BUFFER_SIZE = (256LL << 20); // 256M
   static const int64_t FILE_BUFFER_SIZE = (2LL << 20); // 2M
+  static constexpr int MAX_THREAD_NUMBER = 2;
 public:
   ObLoadDataDirectDemo();
   virtual ~ObLoadDataDirectDemo();
@@ -200,11 +204,19 @@ public:
 private:
   int inner_init(ObLoadDataStmt &load_stmt);
   int do_load();
+  void start_thread(int id);
+
+  static void start(ObLoadDataDirectDemo *demo, int id,
+                    ObTenantBase *switch_tenant) {
+    ObTenantEnv::set_tenant(switch_tenant);
+    demo->start_thread(id);
+  }
+
 private:
-  ObLoadCSVPaser csv_parser_;
+  ObLoadCSVPaser csv_parser_[MAX_THREAD_NUMBER];
   ObLoadSequentialFileReader file_reader_;
-  ObLoadDataBuffer buffer_;
-  ObLoadRowCaster row_caster_;
+  ObLoadDataBuffer buffer_[MAX_THREAD_NUMBER];
+  ObLoadRowCaster row_caster_[MAX_THREAD_NUMBER];
   ObLoadExternalSort external_sort_;
   ObLoadSSTableWriter sstable_writer_;
 };
