@@ -1,8 +1,10 @@
 
 #define USING_LOG_PREFIX SQL_ENG
 
-#include <mutex>
 #include <list>
+#include <memory>
+#include <mutex>
+#include <queue>
 #include <thread>
 
 #include "sql/engine/cmd/ob_load_data_direct_demo.h"
@@ -591,8 +593,6 @@ int ObLoadExternalSort::init(const ObTableSchema *table_schema, int64_t mem_size
 
 int ObLoadExternalSort::append_row(const ObLoadDatumRow &datum_row)
 {
-  std::unique_lock<std::mutex> lck(mtx_);
-
   int ret = OB_SUCCESS;
   if (IS_NOT_INIT) {
     ret = OB_NOT_INIT;
@@ -905,20 +905,21 @@ int ObLoadDataDirectDemo::execute(ObExecContext &ctx, ObLoadDataStmt &load_stmt)
   return ret;
 }
 
-int ObLoadDataDirectDemo::inner_init(ObLoadDataStmt &load_stmt)
-{
+int ObLoadDataDirectDemo::inner_init(ObLoadDataStmt &load_stmt) {
   int ret = OB_SUCCESS;
   const ObLoadArgument &load_args = load_stmt.get_load_arguments();
   const ObIArray<ObLoadDataStmt::FieldOrVarStruct> &field_or_var_list =
-    load_stmt.get_field_or_var_list();
+      load_stmt.get_field_or_var_list();
   const uint64_t tenant_id = load_args.tenant_id_;
   const uint64_t table_id = load_args.table_id_;
   ObSchemaGetterGuard schema_guard;
   const ObTableSchema *table_schema = nullptr;
-  if (OB_FAIL(ObMultiVersionSchemaService::get_instance().get_tenant_schema_guard(tenant_id,
-                                                                                  schema_guard))) {
+  if (OB_FAIL(
+          ObMultiVersionSchemaService::get_instance().get_tenant_schema_guard(
+              tenant_id, schema_guard))) {
     LOG_WARN("fail to get tenant schema guard", KR(ret), K(tenant_id));
-  } else if (OB_FAIL(schema_guard.get_table_schema(tenant_id, table_id, table_schema))) {
+  } else if (OB_FAIL(schema_guard.get_table_schema(tenant_id, table_id,
+                                                   table_schema))) {
     LOG_WARN("fail to get table schema", KR(ret), K(tenant_id), K(table_id));
   } else if (OB_ISNULL(table_schema)) {
     ret = OB_TABLE_NOT_EXIST;
@@ -933,11 +934,6 @@ int ObLoadDataDirectDemo::inner_init(ObLoadDataStmt &load_stmt)
                load_stmt.get_data_struct_in_file().line_term_str_))) {
     LOG_WARN("fail to open file", KR(ret), K(load_args.full_file_path_));
   }
-  // init external_sort_
-  else if (OB_FAIL(external_sort_.init(table_schema, MEM_BUFFER_SIZE,
-                                       FILE_BUFFER_SIZE))) {
-    LOG_WARN("fail to init row caster", KR(ret));
-  }
   // init sstable_writer_
   else if (OB_FAIL(sstable_writer_.init(table_schema))) {
     LOG_WARN("fail to init sstable writer", KR(ret));
@@ -951,6 +947,9 @@ int ObLoadDataDirectDemo::inner_init(ObLoadDataStmt &load_stmt)
     } else if (OB_FAIL(buffer_[i].create(MEM_BUFFER_SIZE))) {
       LOG_WARN("fail to create buffer", KR(ret));
     } else if (OB_FAIL(row_caster_[i].init(table_schema, field_or_var_list))) {
+      LOG_WARN("fail to init row caster", KR(ret));
+    } else if (OB_FAIL(external_sort_[i].init(table_schema, MEM_BUFFER_SIZE,
+                                           FILE_BUFFER_SIZE))) {
       LOG_WARN("fail to init row caster", KR(ret));
     }
   }
@@ -974,11 +973,51 @@ void ObLoadDataDirectDemo::start_thread(int id) {
       }
     } else if (OB_FAIL(row_caster_[id].get_casted_row(*new_row, datum_row))) {
       LOG_WARN("fail to cast row", KR(ret));
-    } else if (OB_FAIL(external_sort_.append_row(*datum_row))) {
+    } else if (OB_FAIL(external_sort_[id].append_row(*datum_row))) {
       LOG_WARN("fail to append row", KR(ret));
     }
   }
 }
+
+struct MergeWarpper {
+  MergeWarpper(ObLoadDatumRowCompare *compare,
+               ObLoadExternalSort *external_sort,
+               const ObLoadDatumRow *datum_row)
+      : compare_(compare), external_sort_(external_sort),
+        datum_row_(datum_row) {}
+
+  static MergeWarpper create(ObLoadExternalSort *external_sort) {
+    int ret = OB_SUCCESS;
+
+    const ObLoadDatumRow *datum_row = nullptr;
+    if (OB_FAIL(external_sort->get_next_row(datum_row))) {
+      if (OB_UNLIKELY(OB_ITER_END != ret)) {
+        LOG_WARN("fail to get next row", KR(ret));
+      }
+      return MergeWarpper(nullptr, nullptr, nullptr);
+    }
+    return MergeWarpper(external_sort->get_compare(), external_sort, datum_row);
+  }
+
+  bool operator<(const MergeWarpper &rhs) const {
+    return !(*compare_)(this->datum_row_, rhs.datum_row_);
+  }
+
+  void get_next() {
+    int ret = OB_SUCCESS;
+
+    if (OB_FAIL(external_sort_->get_next_row(datum_row_))) {
+      if (OB_UNLIKELY(OB_ITER_END != ret)) {
+        LOG_WARN("fail to get next row", KR(ret));
+      }
+      datum_row_ = nullptr;
+    }
+  }
+
+  mutable ObLoadDatumRowCompare *compare_;
+  ObLoadExternalSort *external_sort_;
+  const ObLoadDatumRow *datum_row_;
+};
 
 int ObLoadDataDirectDemo::do_load()
 {
@@ -1022,30 +1061,40 @@ int ObLoadDataDirectDemo::do_load()
     }
   }
 
-  if (OB_SUCC(ret)) {
-    if (OB_FAIL(external_sort_.close())) {
-      LOG_WARN("fail to close external sort", KR(ret));
+  std::priority_queue<MergeWarpper> merge_queue;
+
+  for (int i = 0; i < MAX_THREAD_NUMBER; i++) {
+    if (OB_SUCC(ret)) {
+      if (OB_FAIL(external_sort_[i].close())) {
+        LOG_WARN("fail to close external sort", KR(ret));
+      }
+      auto wrapper = MergeWarpper::create(&external_sort_[i]);
+      if (wrapper.datum_row_ != nullptr) {
+        merge_queue.push(wrapper);
+      }
     }
   }
 
-  const ObLoadDatumRow *datum_row = nullptr;
-  while (OB_SUCC(ret)) {
-    if (OB_FAIL(external_sort_.get_next_row(datum_row))) {
-      if (OB_UNLIKELY(OB_ITER_END != ret)) {
-        LOG_WARN("fail to get next row", KR(ret));
-      } else {
-        ret = OB_SUCCESS;
-        break;
-      }
-    } else if (OB_FAIL(sstable_writer_.append_row(*datum_row))) {
+  while (!merge_queue.empty()) {
+    auto head = merge_queue.top();
+    merge_queue.pop();
+
+    if (OB_FAIL(sstable_writer_.append_row(*head.datum_row_))) {
       LOG_WARN("fail to append row", KR(ret));
     }
+
+    head.get_next();
+    if (head.datum_row_ != nullptr) {
+      merge_queue.push(head);
+    }
   }
+
   if (OB_SUCC(ret)) {
     if (OB_FAIL(sstable_writer_.close())) {
       LOG_WARN("fail to close sstable writer", KR(ret));
     }
   }
+
   return ret;
 }
 

@@ -35,3 +35,6 @@ MySQL [tpch]> select count(*) from lineitem_bulk;
 
 perf record -p 3556 -e cycles -g -F99
 perf report -g --no-children
+
+### 停止集群
+obd cluster stop final_2022

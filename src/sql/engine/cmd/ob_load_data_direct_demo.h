@@ -153,6 +153,8 @@ public:
   int append_row(const ObLoadDatumRow &datum_row);
   int close();
   int get_next_row(const ObLoadDatumRow *&datum_row);
+  ObLoadDatumRowCompare *get_compare() { return &compare_; }
+
 private:
   common::ObArenaAllocator allocator_;
   blocksstable::ObStorageDatumUtils datum_utils_;
@@ -160,7 +162,6 @@ private:
   storage::ObExternalSort<ObLoadDatumRow, ObLoadDatumRowCompare> external_sort_;
   bool is_closed_;
   bool is_inited_;
-  std::mutex mtx_;
 };
 
 class ObLoadSSTableWriter
@@ -217,7 +218,7 @@ private:
   ObLoadSequentialFileReader file_reader_;
   ObLoadDataBuffer buffer_[MAX_THREAD_NUMBER];
   ObLoadRowCaster row_caster_[MAX_THREAD_NUMBER];
-  ObLoadExternalSort external_sort_;
+  ObLoadExternalSort external_sort_[MAX_THREAD_NUMBER];
   ObLoadSSTableWriter sstable_writer_;
 };
 
