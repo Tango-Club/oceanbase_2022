@@ -206,11 +206,18 @@ private:
   int inner_init(ObLoadDataStmt &load_stmt);
   int do_load();
   void start_thread(int id);
+  void end_thread(int id);
 
   static void start(ObLoadDataDirectDemo *demo, int id,
                     ObTenantBase *switch_tenant) {
     ObTenantEnv::set_tenant(switch_tenant);
     demo->start_thread(id);
+  }
+
+  static void end(ObLoadDataDirectDemo *demo, int id,
+                    ObTenantBase *switch_tenant) {
+    ObTenantEnv::set_tenant(switch_tenant);
+    demo->end_thread(id);
   }
 
 private:

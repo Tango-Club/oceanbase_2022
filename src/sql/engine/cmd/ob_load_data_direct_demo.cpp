@@ -979,6 +979,13 @@ void ObLoadDataDirectDemo::start_thread(int id) {
   }
 }
 
+void ObLoadDataDirectDemo::end_thread(int id) {
+  int ret = OB_SUCCESS;
+  if (OB_FAIL(external_sort_[id].close())) {
+    LOG_WARN("fail to close external sort", KR(ret));
+  }
+}
+
 struct MergeWarpper {
   MergeWarpper(ObLoadDatumRowCompare *compare,
                ObLoadExternalSort *external_sort,
@@ -1061,13 +1068,21 @@ int ObLoadDataDirectDemo::do_load()
     }
   }
 
-  std::priority_queue<MergeWarpper> merge_queue;
+  {
+    std::list<std::thread> threads;
+    for (int i = 0; i < MAX_THREAD_NUMBER; i++) {
+      threads.emplace_back(end, this, i,
+                           share::ObTenantEnv::get_tenant_local());
+    }
 
+    for (auto &thread : threads) {
+      thread.join();
+    }
+  }
+
+  std::priority_queue<MergeWarpper> merge_queue;
   for (int i = 0; i < MAX_THREAD_NUMBER; i++) {
     if (OB_SUCC(ret)) {
-      if (OB_FAIL(external_sort_[i].close())) {
-        LOG_WARN("fail to close external sort", KR(ret));
-      }
       auto wrapper = MergeWarpper::create(&external_sort_[i]);
       if (wrapper.datum_row_ != nullptr) {
         merge_queue.push(wrapper);
