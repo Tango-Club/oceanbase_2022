@@ -1068,10 +1068,12 @@ int ObLoadDataDirectDemo::do_load()
     }
   }
 
-  {
+  for (int i = 0; i < MAX_THREAD_NUMBER; i += MAX_THREAD_NUMBER_SORTER_CLOSE) {
+    int thread_number =
+        std::min(MAX_THREAD_NUMBER_SORTER_CLOSE, MAX_THREAD_NUMBER - i);
     std::list<std::thread> threads;
-    for (int i = 0; i < MAX_THREAD_NUMBER; i++) {
-      threads.emplace_back(end, this, i,
+    for (int j = 0; j < thread_number; j++) {
+      threads.emplace_back(end, this, i + j,
                            share::ObTenantEnv::get_tenant_local());
     }
 
