@@ -198,7 +198,7 @@ class ObLoadDataDirectDemo : public ObLoadDataBase
 {
   static const int64_t MEM_BUFFER_SIZE = (256LL << 20); // 256M
   static const int64_t FILE_BUFFER_SIZE = (2LL << 20); // 2M
-  static const int64_t CSV_BUFFER_SIZE = (64LL << 20); // 64M
+  static const int64_t CSV_BUFFER_SIZE = (128LL << 20); // 64M
   static constexpr int MAX_THREAD_NUMBER = 8;
   static constexpr int MAX_THREAD_NUMBER_SORTER_CLOSE = 8;
 public:
