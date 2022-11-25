@@ -199,7 +199,7 @@ class ObLoadDataDirectDemo : public ObLoadDataBase
   static const int64_t FILE_BUFFER_SIZE = (2LL << 20); // 2M
   static constexpr int MAX_THREAD_NUMBER = 4;
   static constexpr int MAX_THREAD_NUMBER_SORTER_CLOSE =
-      MAX_THREAD_NUMBER / 2; // 8 parallel close will oom
+      MAX_THREAD_NUMBER; // 8 parallel close will oom
 public:
   ObLoadDataDirectDemo();
   virtual ~ObLoadDataDirectDemo();
