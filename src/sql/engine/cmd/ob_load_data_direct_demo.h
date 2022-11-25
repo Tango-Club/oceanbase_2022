@@ -2,6 +2,7 @@
 
 #include "lib/file/ob_file.h"
 #include "lib/timezone/ob_timezone_info.h"
+#include "observer/omt/ob_multi_tenant.h"
 #include "sql/engine/cmd/ob_load_data_impl.h"
 #include "sql/engine/cmd/ob_load_data_parser.h"
 #include "storage/blocksstable/ob_index_block_builder.h"
@@ -197,8 +198,9 @@ class ObLoadDataDirectDemo : public ObLoadDataBase
 {
   static const int64_t MEM_BUFFER_SIZE = (256LL << 20); // 256M
   static const int64_t FILE_BUFFER_SIZE = (2LL << 20); // 2M
-  static constexpr int MAX_THREAD_NUMBER = 6;
-  static constexpr int MAX_THREAD_NUMBER_SORTER_CLOSE = 4;
+  static const int64_t CSV_BUFFER_SIZE = (64LL << 20); // 64M
+  static constexpr int MAX_THREAD_NUMBER = 8;
+  static constexpr int MAX_THREAD_NUMBER_SORTER_CLOSE = 8;
 public:
   ObLoadDataDirectDemo();
   virtual ~ObLoadDataDirectDemo();

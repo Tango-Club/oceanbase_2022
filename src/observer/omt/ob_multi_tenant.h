@@ -164,10 +164,10 @@ public:
   int write_delete_tenant_commit_slog(uint64_t tenant_id);
   int clear_persistent_data(const uint64_t tenant_id);
   int check_if_unit_id_exist(const uint64_t unit_id, bool &exist);
+  int get_tenant_unsafe(const uint64_t tenant_id, ObTenant *&tenant) const;
 
 protected:
   void run1();
-  int get_tenant_unsafe(const uint64_t tenant_id, ObTenant *&tenant) const;
 
   int write_create_tenant_prepare_slog(const ObTenantMeta &meta);
   int write_create_tenant_commit_slog(uint64_t tenant_id);
