@@ -52,6 +52,7 @@ private:
   ObString term_;
   int64_t offset_;
   bool is_read_end_;
+  std::mutex mtx_;
 };
 
 class ObLoadCSVPaser
@@ -198,7 +199,7 @@ class ObLoadDataDirectDemo : public ObLoadDataBase
 {
   static const int64_t MEM_BUFFER_SIZE = (256LL << 20); // 256M
   static const int64_t FILE_BUFFER_SIZE = (2LL << 20); // 2M
-  static const int64_t CSV_BUFFER_SIZE = (128LL << 20); // 64M
+  static const int64_t CSV_BUFFER_SIZE = (128LL << 20); // 128M
   static constexpr int MAX_THREAD_NUMBER = 8;
   static constexpr int MAX_THREAD_NUMBER_SORTER_CLOSE = 8;
 public:
@@ -208,19 +209,12 @@ public:
 private:
   int inner_init(ObLoadDataStmt &load_stmt);
   int do_load();
-  void start_thread(int id);
-  void end_thread(int id);
 
+  void start_thread(int id);
   static void start(ObLoadDataDirectDemo *demo, int id,
                     ObTenantBase *switch_tenant) {
     ObTenantEnv::set_tenant(switch_tenant);
     demo->start_thread(id);
-  }
-
-  static void end(ObLoadDataDirectDemo *demo, int id,
-                    ObTenantBase *switch_tenant) {
-    ObTenantEnv::set_tenant(switch_tenant);
-    demo->end_thread(id);
   }
 
 private:
@@ -230,6 +224,7 @@ private:
   ObLoadRowCaster row_caster_[MAX_THREAD_NUMBER];
   ObLoadExternalSort external_sort_[MAX_THREAD_NUMBER];
   ObLoadSSTableWriter sstable_writer_;
+  std::atomic_bool eos_{false};
 };
 
 } // namespace sql

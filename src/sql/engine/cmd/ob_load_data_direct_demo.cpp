@@ -1,6 +1,7 @@
 
 #define USING_LOG_PREFIX SQL_ENG
 
+#include <atomic>
 #include <list>
 #include <memory>
 #include <mutex>
@@ -117,6 +118,8 @@ int ObLoadSequentialFileReader::open(const ObString &filepath,
 
 int ObLoadSequentialFileReader::read_next_buffer(ObLoadDataBuffer &buffer)
 {
+  std::unique_lock<std::mutex> lck(mtx_);
+
   int ret = OB_SUCCESS;
   if (OB_UNLIKELY(!file_reader_.is_opened())) {
     ret = OB_FILE_NOT_OPENED;
@@ -961,26 +964,43 @@ void ObLoadDataDirectDemo::start_thread(int id) {
   int ret = OB_SUCCESS;
   const ObNewRow *new_row = nullptr;
   const ObLoadDatumRow *datum_row = nullptr;
-  int cnt = 0;
-  while (OB_SUCC(ret)) {
-    cnt++;
-    if (OB_FAIL(csv_parser_[id].get_next_row(buffer_[id], new_row))) {
+
+  while (!eos_) {
+    if (OB_FAIL(buffer_[id].squash())) {
+      LOG_WARN("fail to squash buffer", KR(ret));
+    } else if (OB_FAIL(file_reader_.read_next_buffer(buffer_[id]))) {
       if (OB_UNLIKELY(OB_ITER_END != ret)) {
-        LOG_WARN("fail to get next row", KR(ret));
+        LOG_WARN("fail to read next buffer", KR(ret));
       } else {
+        if (OB_UNLIKELY(!buffer_[id].empty())) {
+          ret = OB_ERR_UNEXPECTED;
+          LOG_WARN("unexpected incomplate data", KR(ret));
+        }
         ret = OB_SUCCESS;
+        eos_ = true;
         break;
       }
-    } else if (OB_FAIL(row_caster_[id].get_casted_row(*new_row, datum_row))) {
-      LOG_WARN("fail to cast row", KR(ret));
-    } else if (OB_FAIL(external_sort_[id].append_row(*datum_row))) {
-      LOG_WARN("fail to append row", KR(ret));
+    } else if (OB_UNLIKELY(buffer_[id].empty())) {
+      ret = OB_ERR_UNEXPECTED;
+      LOG_WARN("unexpected empty buffer", KR(ret));
+    } else {
+      while (OB_SUCC(ret)) {
+        if (OB_FAIL(csv_parser_[id].get_next_row(buffer_[id], new_row))) {
+          if (OB_UNLIKELY(OB_ITER_END != ret)) {
+            LOG_WARN("fail to get next row", KR(ret));
+          } else {
+            ret = OB_SUCCESS;
+            break;
+          }
+        } else if (OB_FAIL(
+                       row_caster_[id].get_casted_row(*new_row, datum_row))) {
+          LOG_WARN("fail to cast row", KR(ret));
+        } else if (OB_FAIL(external_sort_[id].append_row(*datum_row))) {
+          LOG_WARN("fail to append row", KR(ret));
+        }
+      }
     }
   }
-}
-
-void ObLoadDataDirectDemo::end_thread(int id) {
-  int ret = OB_SUCCESS;
   if (OB_FAIL(external_sort_[id].close())) {
     LOG_WARN("fail to close external sort", KR(ret));
   }
@@ -1031,52 +1051,13 @@ int ObLoadDataDirectDemo::do_load()
   int ret = OB_SUCCESS;
   std::mutex mtx;
 
-  while (OB_SUCC(ret)) {
+  {
     std::list<std::thread> threads;
-    bool eos = false;
 
     for (int i = 0; i < MAX_THREAD_NUMBER; i++) {
-      if (OB_FAIL(buffer_[i].squash())) {
-        LOG_WARN("fail to squash buffer", KR(ret));
-      } else if (OB_FAIL(file_reader_.read_next_buffer(buffer_[i]))) {
-        if (OB_UNLIKELY(OB_ITER_END != ret)) {
-          LOG_WARN("fail to read next buffer", KR(ret));
-        } else {
-          if (OB_UNLIKELY(!buffer_[i].empty())) {
-            ret = OB_ERR_UNEXPECTED;
-            LOG_WARN("unexpected incomplate data", KR(ret));
-          }
-          ret = OB_SUCCESS;
-          eos = true;
-          break;
-        }
-      } else if (OB_UNLIKELY(buffer_[i].empty())) {
-        ret = OB_ERR_UNEXPECTED;
-        LOG_WARN("unexpected empty buffer", KR(ret));
-      } else {
-        threads.emplace_back(start, this, i,
-                             share::ObTenantEnv::get_tenant_local());
-      }
-    }
-
-    for (auto &thread : threads) {
-      thread.join();
-    }
-
-    if (eos) {
-      break;
-    }
-  }
-
-  for (int i = 0; i < MAX_THREAD_NUMBER; i += MAX_THREAD_NUMBER_SORTER_CLOSE) {
-    int thread_number =
-        std::min(MAX_THREAD_NUMBER_SORTER_CLOSE, MAX_THREAD_NUMBER - i);
-    std::list<std::thread> threads;
-    for (int j = 0; j < thread_number; j++) {
-      threads.emplace_back(end, this, i + j,
+      threads.emplace_back(start, this, i,
                            share::ObTenantEnv::get_tenant_local());
     }
-
     for (auto &thread : threads) {
       thread.join();
     }
