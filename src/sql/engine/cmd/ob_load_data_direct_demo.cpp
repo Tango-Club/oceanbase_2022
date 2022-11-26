@@ -947,7 +947,7 @@ int ObLoadDataDirectDemo::inner_init(ObLoadDataStmt &load_stmt) {
                                     field_or_var_list.count(),
                                     load_args.file_cs_type_))) {
       LOG_WARN("fail to init csv parser", KR(ret));
-    } else if (OB_FAIL(buffer_[i].create(CSV_BUFFER_SIZE))) {
+    } else if (OB_FAIL(buffer_[i].create(FILE_BUFFER_SIZE))) {
       LOG_WARN("fail to create buffer", KR(ret));
     } else if (OB_FAIL(row_caster_[i].init(table_schema, field_or_var_list))) {
       LOG_WARN("fail to init row caster", KR(ret));
